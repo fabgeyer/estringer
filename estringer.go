@@ -96,6 +96,7 @@ var (
 	trimprefix  = flag.String("trimprefix", "", "trim the `prefix` from the generated constant names")
 	linecomment = flag.Bool("linecomment", false, "use line comment text as printed text when present")
 	buildTags   = flag.String("tags", "", "comma-separated list of build tags to apply")
+	strToTypeFn = flag.Bool("string-to-type", false, "generate string-to-type function")
 )
 
 // Usage is a replacement usage function for the flags package.
@@ -647,6 +648,11 @@ func (g *Generator) buildOneRun(runs [][]Value, typeName string) {
 	} else {
 		g.Printf(stringOneRunWithOffset, typeName, values[0].String(), usize(len(values)), lessThanZero)
 	}
+
+	if *strToTypeFn {
+		g.Printf("\n")
+		g.Printf(stringToType, typeName, values[0].originalName, usize(len(values)), len(values))
+	}
 }
 
 // Arguments to format are:
@@ -675,6 +681,30 @@ const stringOneRunWithOffset = `func (i %[1]s) String() string {
 		return "%[1]s(" + strconv.FormatInt(int64(i + %[2]s), 10) + ")"
 	}
 	return _%[1]s_name[_%[1]s_index[i] : _%[1]s_index[i+1]]
+}
+`
+
+// Arguments to format are:
+//
+//	[1]: type name
+//	[2]: lowest defined value for type, as a string
+//	[3]: size of index element (8 for uint8 etc.)
+//	[4]: number of values
+const stringToType = `func StringTo%[1]s(v string) (%[1]s, bool) {
+	for i := 0; i < %[4]d; i++ {
+		if v == _%[1]s_name[_%[1]s_index[i]:_%[1]s_index[i+1]] {
+			return %[1]s(i), true
+		}
+	}
+	return %[2]s, false
+}
+
+func StringTo%[1]sOrPanic(v string) %[1]s {
+	t, ok := StringTo%[1]s(v)
+	if !ok {
+		panic("Invalid value")
+	}
+	return t
 }
 `
 
